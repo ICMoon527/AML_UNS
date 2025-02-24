@@ -37,3 +37,6 @@
 # Fold
 Data
 Doc
+
+# File
+*.pyc
