@@ -29,6 +29,10 @@ def plotProtein(name_1, name_2, X, Y):
     proteins_df['Label'] = labels_array
     plt.figure(figsize=(8, 5))
     sns.scatterplot(x=name_1, y=name_2, hue='Label', data=proteins_df, palette={0: 'blue', 1: 'green'}, s=1)
+    # 更新刻度标签字体大小
+    plt.xlabel(name_1, fontweight='bold')  # 横坐标轴名字加粗
+    plt.ylabel(name_2, fontweight='bold')  # 纵坐标轴名字加粗
+    plt.legend(markerscale=5)
     plt.savefig('Results/Proteins/{}VS{}'.format(name_1, name_2), dpi=600)
     print('Results/Proteins/{}VS{}.png is SAVED'.format(name_1, name_2))
 

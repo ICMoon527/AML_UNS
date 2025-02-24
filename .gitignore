@@ -37,6 +37,7 @@
 # Fold
 Data
 Doc
+__pycache__
 
 # File
 *.pyc
