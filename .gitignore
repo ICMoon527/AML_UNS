@@ -30,3 +30,10 @@
 *.exe
 *.out
 *.app
+
+# Figures
+*.png
+
+# Fold
+Data
+Doc
