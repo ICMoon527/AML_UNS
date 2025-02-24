@@ -36,6 +36,11 @@ def plotProtein(name_1, name_2, X, Y):
     plt.savefig('Results/Proteins/{}VS{}'.format(name_1, name_2), dpi=600)
     print('Results/Proteins/{}VS{}.png is SAVED'.format(name_1, name_2))
 
+def Figure1(raw_X_list, raw_Y_list):
+    protein_pair = [['CD45', 'CD34'], ['CD45', 'SSC-A'], ['CD13', 'CD33'], ['HLA-DR', 'CD117'], ['CD56', 'CD7']]
+    for i in range(len(protein_pair)):
+        plotProtein(protein_pair[i][0], protein_pair[i][1], raw_X_list, raw_Y_list)
+
 if __name__ == '__main__':
     raw_X_list, raw_Y_list = [], []
     for root, dirs, files in os.walk('Data/DataInPatients'):
@@ -46,4 +51,4 @@ if __name__ == '__main__':
                 raw_X_list.append(numpy_data)
                 raw_Y_list.append(int(file.split('_')[-1].split('.')[0]))
 
-    plotProtein('CD45', 'CD34', raw_X_list, raw_Y_list)
+    Figure1(raw_X_list, raw_Y_list)
