@@ -226,7 +226,7 @@ def aggregate_features(patient_samples):
 
 if __name__ == '__main__':
     raw_X_list, raw_Y_list = [], []
-    useUmap = True
+    useUmap = False
     chunk_length = 10000
     if not useUmap:
         for root, dirs, files in os.walk('Data/DataInPatients'):
