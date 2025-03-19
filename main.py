@@ -12,6 +12,7 @@ from pycirclize import Circos
 import xgboost as xgb
 from sklearn.metrics import RocCurveDisplay, roc_auc_score
 from sklearn.model_selection import StratifiedKFold, GridSearchCV
+import json
 
 os.environ["OMP_NUM_THREADS"] = "2"
 features_name = ['SSC-A', 'FSC-A', 'FSC-H', 'CD7', 'CD11B', 'CD13', 'CD19', 'CD33', 'CD34', 'CD38', 'CD45', 'CD56', 'CD117', 'DR', 'HLA-DR']
@@ -224,9 +225,32 @@ def aggregate_features(patient_samples):
         ])
     return stats
 
+def firstNCells(patient_samples, n):
+    while len(patient_samples)<n:
+        patient_samples = np.vstack((patient_samples, patient_samples))  # 长度不足的话做一个简单拼接
+    data = np.array(patient_samples)[:n, :].flatten()
+    return data
+
+def allCells(raw_X_list, raw_Y_list, n):
+    # 截长补短
+    X_train, Y_train = list(), list()
+    max_length = n
+    for i in range(len(raw_X_list)):
+        numpy_data = raw_X_list[i]
+
+        while len(numpy_data)<n:
+            numpy_data = np.vstack((numpy_data, numpy_data))  # 长度不足的话做一个简单拼接
+
+        while numpy_data.shape[0] >= max_length:
+            X_train.append(numpy_data[:max_length].flatten())
+            Y_train.append(raw_Y_list[i])  # 0:M2, 1:M5
+            numpy_data = numpy_data[max_length:]
+
+    return np.array(X_train), np.array(Y_train)
+
 if __name__ == '__main__':
     raw_X_list, raw_Y_list = [], []
-    useUmap = False
+    useUmap = True
     chunk_length = 10000
     if not useUmap:
         for root, dirs, files in os.walk('Data/DataInPatients'):
@@ -241,7 +265,7 @@ if __name__ == '__main__':
         # PCA(raw_X_list, raw_Y_list)
         # Figure3(raw_X_list, raw_Y_list)
 
-        X_aggregated = np.array([aggregate_features(patient) for patient in raw_X_list])
+        X_aggregated = np.array([firstNCells(patient, n=20000) for patient in raw_X_list])
         y = np.array(raw_Y_list)
     
     else:
@@ -253,6 +277,12 @@ if __name__ == '__main__':
                     raw_X_list.append(numpy_data)
                     raw_Y_list.append(int(file.split('_')[-1].split('.')[0]))
 
+        # X_aggregated = np.array([firstNCells(patient, n=30000) for patient in raw_X_list])
+        # print('X.shape: ', X_aggregated.shape)
+        # y = np.array(raw_Y_list)
+        X_aggregated, y = allCells(raw_X_list, raw_Y_list, n=20000)
+        print(X_aggregated.shape, y.shape)
+
     
     # 比较纵向特征聚合和横向特征聚合+XGBoost的效果
     
@@ -261,29 +291,39 @@ if __name__ == '__main__':
     S = X_aggregated  # Replace with your actual filtered data
     t = y  # Replace with your actual labels
 
-    # Set up the XGBoost classifier
+    # 添加类别权重计算
+    class_weights = len(t) / (2 * np.bincount(t))
+    weight_ratio = class_weights[1] / class_weights[0]  # 适用于二分类问题
+
+    # 优化后的模型配置
     xgb_model = xgb.XGBClassifier(
-        n_estimators=1000,       # 1,000 trees
-        max_depth=6,             # Maximum depth of trees
-        learning_rate=0.01,      # Learning rate
-        subsample=0.8,           # Subsample to prevent overfitting
-        colsample_bytree=1,      # Column sampling
-        use_label_encoder=False, # Avoid deprecation warning
-        eval_metric='logloss'    # Evaluation metric
+        n_estimators=500,           # 减少基础树数量
+        max_depth=4,                # 降低默认深度
+        learning_rate=0.1,          # 提高基础学习率
+        subsample=0.7,              # 降低子采样率
+        colsample_bytree=0.7,       # 增加特征采样正则化
+        reg_alpha=0.1,              # 添加L1正则化
+        reg_lambda=1,               # 添加L2正则化
+        scale_pos_weight=weight_ratio,  # 处理类别不平衡
+        eval_metric='logloss',
+        random_state=42             # 固定随机种子
     )
 
-    # Define the hyperparameter grid for the inner loop (GridSearchCV)
+    # 优化后的参数空间
     param_grid = {
-        'n_estimators': [100, 300, 500, 700, 1000, 2000],
-        'max_depth': [3, 6, 8, 10, 12],
-        'learning_rate': [0.0001, 0.001, 0.01, 0.05, 0.1]
+        'n_estimators': [50, 100, 200],
+        'max_depth': [2, 3, 4],
+        'learning_rate': [0.05, 0.1, 0.2],
+        'subsample': [0.6, 0.7],
+        'colsample_bytree': [0.6, 0.8],
+        'reg_alpha': [0, 0.1, 1],
+        'reg_lambda': [0.1, 1, 10]
     }
-
     # Set up StratifiedKFold for the outer loop (for nested cross-validation)
-    outer_cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
+    outer_cv = StratifiedKFold(n_splits=10, shuffle=False)
 
     # Set up StratifiedKFold for the inner loop (for hyperparameter tuning)
-    inner_cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    inner_cv = StratifiedKFold(n_splits=5, shuffle=False)
 
     tprs = []
     aucs = []
@@ -368,8 +408,17 @@ if __name__ == '__main__':
     ax.legend(loc="lower right")
 
     # Save and show the plot
-    plt.savefig('Results/XGB/ROC_nested_cv.png', dpi=900)
-    plt.show()
+    file_name = 'ROC_nested_cv_UMAP20000'
+    save_path = 'Results/XGB/AllCellsUsed/'
+    plt.savefig(save_path+file_name+'.png', dpi=900)
 
     # Print the average AUC across folds
     print(f"Average AUC across folds: {mean_auc:.2f} ± {std_auc:.2f}")
+
+    best_model = grid_search.best_estimator_
+    best_params = best_model.get_params()
+    output_file_json = save_path+file_name+'.json'
+    with open(output_file_json, "w") as file:
+        json.dump(best_params, file, indent=4)
+
+    print(f"Model parameters (JSON) have been saved to {output_file_json}")
