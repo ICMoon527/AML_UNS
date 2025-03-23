@@ -13,6 +13,7 @@ import xgboost as xgb
 from sklearn.metrics import RocCurveDisplay, roc_auc_score
 from sklearn.model_selection import StratifiedKFold, GridSearchCV
 import json
+from tqdm import tqdm
 
 os.environ["OMP_NUM_THREADS"] = "2"
 features_name = ['SSC-A', 'FSC-A', 'FSC-H', 'CD7', 'CD11B', 'CD13', 'CD19', 'CD33', 'CD34', 'CD38', 'CD45', 'CD56', 'CD117', 'DR', 'HLA-DR']
@@ -268,7 +269,7 @@ if __name__ == '__main__':
         X_aggregated = np.array([firstNCells(patient, n=20000) for patient in raw_X_list])
         y = np.array(raw_Y_list)
     
-    else:
+    else:  # use UMAP
         for root, dirs, files in os.walk('Data/DataInPatientsUmap'):
             for file in files:
                 if 'npy' in file:
@@ -280,7 +281,7 @@ if __name__ == '__main__':
         # X_aggregated = np.array([firstNCells(patient, n=30000) for patient in raw_X_list])
         # print('X.shape: ', X_aggregated.shape)
         # y = np.array(raw_Y_list)
-        X_aggregated, y = allCells(raw_X_list, raw_Y_list, n=20000)
+        X_aggregated, y = allCells(raw_X_list, raw_Y_list, n=10000)
         print(X_aggregated.shape, y.shape)
 
     
@@ -298,11 +299,11 @@ if __name__ == '__main__':
     # 优化后的模型配置
     xgb_model = xgb.XGBClassifier(
         n_estimators=500,           # 减少基础树数量
-        max_depth=4,                # 降低默认深度
+        max_depth=2,                # 降低默认深度
         learning_rate=0.1,          # 提高基础学习率
         subsample=0.7,              # 降低子采样率
-        colsample_bytree=0.7,       # 增加特征采样正则化
-        reg_alpha=0.1,              # 添加L1正则化
+        colsample_bytree=0.8,       # 增加特征采样正则化
+        reg_alpha=0,              # 添加L1正则化
         reg_lambda=1,               # 添加L2正则化
         scale_pos_weight=weight_ratio,  # 处理类别不平衡
         eval_metric='logloss',
@@ -311,13 +312,13 @@ if __name__ == '__main__':
 
     # 优化后的参数空间
     param_grid = {
-        'n_estimators': [50, 100, 200],
-        'max_depth': [2, 3, 4],
-        'learning_rate': [0.05, 0.1, 0.2],
-        'subsample': [0.6, 0.7],
-        'colsample_bytree': [0.6, 0.8],
-        'reg_alpha': [0, 0.1, 1],
-        'reg_lambda': [0.1, 1, 10]
+        'n_estimators': [200, 300, 500],
+        'max_depth': [2, 4, 6],
+        'learning_rate': [0.1, 0.2, 0.3],
+        # 'subsample': [0.6, 0.7],
+        # 'colsample_bytree': [0.6, 0.8],
+        # 'reg_alpha': [0, 0.1, 1],
+        # 'reg_lambda': [0.1, 1]
     }
     # Set up StratifiedKFold for the outer loop (for nested cross-validation)
     outer_cv = StratifiedKFold(n_splits=10, shuffle=False)
@@ -332,13 +333,13 @@ if __name__ == '__main__':
     # Initialize plot
     fig, ax = plt.subplots(figsize=(6, 6))
 
-    for fold, (train_idx, test_idx) in enumerate(outer_cv.split(S, t)):
+    for fold, (train_idx, test_idx) in enumerate(tqdm(outer_cv.split(S, t), total=outer_cv.get_n_splits(), desc='CV Progress')):
         # Split the data into training and testing sets
         X_train, X_test = S[train_idx], S[test_idx]
         y_train, y_test = t[train_idx], t[test_idx]
         
         # Perform GridSearchCV for hyperparameter tuning on the inner loop
-        grid_search = GridSearchCV(estimator=xgb_model, param_grid=param_grid, cv=inner_cv, scoring='roc_auc')
+        grid_search = GridSearchCV(estimator=xgb_model, param_grid=param_grid, cv=inner_cv, scoring='roc_auc', verbose=2)
         grid_search.fit(X_train, y_train)
         
         # Get the best model from GridSearchCV
@@ -408,7 +409,7 @@ if __name__ == '__main__':
     ax.legend(loc="lower right")
 
     # Save and show the plot
-    file_name = 'ROC_nested_cv_UMAP20000'
+    file_name = 'ROC_nested_cv_UMAP10000'
     save_path = 'Results/XGB/AllCellsUsed/'
     plt.savefig(save_path+file_name+'.png', dpi=900)
 
