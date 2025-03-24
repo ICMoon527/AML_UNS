@@ -300,7 +300,7 @@ if __name__ == '__main__':
     xgb_model = xgb.XGBClassifier(
         n_estimators=500,           # 减少基础树数量
         max_depth=2,                # 降低默认深度
-        learning_rate=0.1,          # 提高基础学习率
+        learning_rate=0.2,          # 提高基础学习率
         subsample=0.7,              # 降低子采样率
         colsample_bytree=0.8,       # 增加特征采样正则化
         reg_alpha=0,              # 添加L1正则化
@@ -313,8 +313,8 @@ if __name__ == '__main__':
     # 优化后的参数空间
     param_grid = {
         'n_estimators': [200, 300, 500],
-        'max_depth': [2, 4, 6],
-        'learning_rate': [0.1, 0.2, 0.3],
+        'max_depth': [2, 4],
+        'learning_rate': [0.05, 0.1, 0.2],
         # 'subsample': [0.6, 0.7],
         # 'colsample_bytree': [0.6, 0.8],
         # 'reg_alpha': [0, 0.1, 1],
