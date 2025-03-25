@@ -270,14 +270,29 @@ if __name__ == '__main__':
         y = np.array(raw_Y_list)
     
     else:  # use UMAP
+        Umap_1_max = -10000
+        Umap_1_min = 10000
+        Umap_2_max = -10000
+        Umap_2_min = 10000
         for root, dirs, files in os.walk('Data/DataInPatientsUmap'):
             for file in files:
                 if 'npy' in file:
                     print('Proceeding {}...'.format(file))
-                    numpy_data = np.load(os.path.join(root, file)) / 1023.  # standarize
+                    numpy_data = np.load(os.path.join(root, file))  # standarize
+
+                    Umap_1_max = Umap_1_max if Umap_1_max > np.max(numpy_data[:,0]) else np.max(numpy_data[:,0])
+                    Umap_1_min = Umap_1_min if Umap_1_min < np.min(numpy_data[:,0]) else np.min(numpy_data[:,0])
+                    Umap_2_max = Umap_2_max if Umap_2_max > np.max(numpy_data[:,1]) else np.max(numpy_data[:,1])
+                    Umap_2_min = Umap_2_min if Umap_2_min < np.min(numpy_data[:,1]) else np.min(numpy_data[:,1])
+
                     raw_X_list.append(numpy_data)
                     raw_Y_list.append(int(file.split('_')[-1].split('.')[0]))
 
+        for i in range(len(raw_X_list)):
+            X_train = raw_X_list[i]
+            X_train[:,0] = (X_train[:,0]-Umap_1_min)/(Umap_1_max-Umap_1_min)
+            X_train[:,1] = (X_train[:,1]-Umap_2_min)/(Umap_2_max-Umap_2_min)
+            raw_X_list[i] = X_train
         # X_aggregated = np.array([firstNCells(patient, n=30000) for patient in raw_X_list])
         # print('X.shape: ', X_aggregated.shape)
         # y = np.array(raw_Y_list)
