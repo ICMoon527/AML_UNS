@@ -27,36 +27,38 @@ if __name__ == '__main__':
 
     # 优化后的参数空间
     param_grid = {
-        'n_estimators': [200, 300, 500],
-        'max_depth': [2, 3, 4],
-        'learning_rate': [0.05, 0.1, 0.2],
+        'reg_alpha': [0.1, 0.2, 0.3],
+        'reg_lambda': [1, 3, 5],
+        'gamma': [0.3, 0.5, 1]
     }
 
     param_combinations = list(product(
-        param_grid['n_estimators'],
-        param_grid['max_depth'],
-        param_grid['learning_rate']
+        param_grid['reg_alpha'],
+        param_grid['reg_lambda'],
+        param_grid['gamma']
     ))
     param_combinations = pd.DataFrame(
         param_combinations,
-        columns=['n_estimators', 'max_depth', 'learning_rate']
+        columns=param_grid.keys()
     )
 
     auc_means, auc_stds = [], []
     for params in param_combinations.itertuples(index=False):
-        estimator_num = params.n_estimators
-        depth = params.max_depth
-        lr = params.learning_rate
+        reg_alpha = params.reg_alpha
+        reg_lambda = params.reg_lambda
+        gamma = params.gamma
 
         # 优化后的模型配置
         xgb_model = xgb.XGBClassifier(
-            n_estimators=estimator_num,           # 减少基础树数量
-            max_depth=depth,                # 降低默认深度
-            learning_rate=lr,          # 提高基础学习率
-            subsample=0.7,              # 降低子采样率
-            colsample_bytree=0.8,       # 增加特征采样正则化
-            reg_alpha=0,              # 添加L1正则化
-            reg_lambda=1,               # 添加L2正则化
+            n_estimators=400,           # 减少基础树数量
+            max_depth=5,                # 降低默认深度
+            learning_rate=0.1,          # 提高基础学习率
+            subsample=0.9,              # 降低子采样率
+            colsample_bytree=0.9,       # 增加特征采样正则化
+            colsample_bylevel=0.9,   # 每层用80%特征
+            reg_alpha=reg_alpha,              # 添加L1正则化
+            reg_lambda=reg_lambda,               # 添加L2正则化
+            gamma=gamma,
             scale_pos_weight=weight_ratio,  # 处理类别不平衡
             eval_metric='logloss',
             random_state=42             # 固定随机种子
@@ -111,8 +113,8 @@ if __name__ == '__main__':
         data=plot_df,
         x="AUC_mean", 
         y="param_id",
-        hue="learning_rate",  # 用颜色区分学习率
-        size="max_depth",     # 用点大小区分树深度
+        hue="reg_lambda",  # 用颜色区分学习率
+        size="gamma",     # 用点大小区分树深度
         sizes=(50, 200),     # 大小范围
         palette="viridis",    # 颜色映射
         edgecolor="black",
@@ -132,8 +134,8 @@ if __name__ == '__main__':
 
     # 添加参数表格注释
     param_table = plt.table(
-    cellText=plot_df[["n_estimators", "max_depth", "learning_rate"]].values,
-    colLabels=["Estimators", "Depth", "LR"],  # 缩短列名
+    cellText=plot_df[param_grid.keys()].values,
+    colLabels=["ALPHA", "LAMBDA", "GAMMA"],  # 缩短列名
     rowLabels=plot_df["param_id"],
     loc="right",
     bbox=[1.05, -0.0, 0.25, 0.8],  # 调整位置 [x, y, width, height]
